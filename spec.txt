@@ -1,0 +1,46 @@
+a program in C (unix) for copying files from media with read errors, quickly recovering as much readable data as possible, while (initially) avoiding to spend lots of time reading through bad areas.
+
+a metadata file is stored along with the output file, which stores the copy progress, so copying can be interrupted and resumed at any time,
+that file is initialized on first run, updates to it are made safely to avoid loss of progress information even in a crash.
+a backup copy of the metadata file is kept that is only updated after _successful_ reads (to allow to recover from the the case where the storage driver starts failing all reads indiscriminately).
+
+parameters:
+ * input file and output file.
+ * option to initialize the output file with zeroes instead of letting the OS generate a sparse file as sectors are written into it (an existing file is never overwritten, the user has to remove it manually)
+ * option to reset retry counts in the metadata file (all previously failed sectors are reset to simply not copied)
+ * option to enable status display
+ * maximum number of retries per sector (default: maximum supported by the status file format)
+ * maximum number of total read errors per run
+ * maximum number of continuous read errors
+ * minimum size of area to try to copy (possibly overrides alternate copy modes specified below)
+ * skip ratio (default 1/3)
+ * sector size (default 512 bytes)
+ * buffer size (default 32MB)
+ * max forward copy segment size (default 4MB)
+
+inputs are in bytes by default, but can use Si (k,m,g,t) or binary (K,M,G,T) suffixes. decimals are supported with suffixes, i.e. "1.5G".
+
+format of metadata file:
+mime-like, a human-readable header in ascii, identifying the program and parameters,
+followed by a binary blob of one byte for each sector of the input file, where \0 means not copied, \1 means copied, and any value above that is the number of failed read attempts -1.
+parameters (including the size of the binary status blob) are validated on load.
+
+the program iterates as follows:
+ * picks largest un-copied range (initially the full file)
+ * except on initial startup: the range will start with a sector right after one known to be unreadable, so the program skips the initial "skip ratio" of the range, and starts copying after that
+ * copies data quickly by reading and writing using the large buffer, marking sectors as copied in the metadata file
+ * when a read error is encountered, writes out the partial buffer and marks that range as copied,
+   marks the sector that failed to be read as failed (with numer of attempts tracked),
+   and goes back to picking the largest un-copied range
+ * when no area larger than the forward copy segment size is available,
+   the program switches to a second mode where:
+  * it splits the largest un-copied range in the middle
+    * copies forward from the middle as far as possible
+    * if the forward copy managed to read any data, also copies backwards from the middle point.
+ * once no un-copied un-tried sectors are available,
+  * it attempts to copy randomly selected single sectors, until retries are exhausted for each one, then giving up.
+ * when the maximum number of total read errors per run is reached, the program aborts
+ * when the maximum number of continuous read errors (reset on any successful read) is reached, the program aborts,
+   and suggests to reset the device and restore the backup of the status file
+
+ * a status display is available that continously displays and updates the sector status bytes on the screen, scaled to fit the available characters ((height-1)*width-1, the first line shows status information, the last character is not used, to simplify screen updates.)
