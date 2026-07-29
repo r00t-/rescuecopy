@@ -226,7 +226,7 @@ static int meta_write(const char *path)
         remaining -= wr;
     }
 
-    if (fsync(fd) < 0) goto write_err;
+    //if (fsync(fd) < 0) goto write_err;
     close(fd);
 
     if (rename(tmp_path, path) < 0) {
