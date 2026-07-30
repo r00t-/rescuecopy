@@ -575,7 +575,7 @@ static void mark_failed(uint64_t sector_idx)
 
 /* ?? Status display ?????????????????????????????????????????????????? */
 
-static void display_status(void)
+static void display_status(char mark, uint64_t current_sector)
 {
     if (!g_show_status) return;
 
@@ -621,8 +621,13 @@ static void display_status(void)
 
     /* Sector map: each character represents a group of sectors */
     double sectors_per_char = (double)g_sector_count / (double)map_chars;
+    int current = (int)((double)current_sector / sectors_per_char);
 
     for (int i = 0; i < map_chars; i++) {
+        if (mark && i == current){
+            putchar(mark);
+            continue;
+        }
         uint64_t s_start = (uint64_t)((double)i * sectors_per_char);
         uint64_t s_end   = (uint64_t)((double)(i + 1) * sectors_per_char);
         if (s_end > g_sector_count) s_end = g_sector_count;
@@ -719,6 +724,8 @@ static err_check_t fast_copy_range(uint64_t start, uint64_t count)
         chunk = run;
         if (chunk > sectors_per_buf) chunk = sectors_per_buf;
 
+        display_status('>', pos);
+
         uint64_t err_sect = 0;
         uint64_t ok = read_sectors(pos, chunk, g_io_buffer, &err_sect);
 
@@ -744,14 +751,14 @@ static err_check_t fast_copy_range(uint64_t start, uint64_t count)
             /* Save progress and return to let caller pick next range */
             meta_save();
             meta_save_backup();
-            display_status();
+            display_status(0, 0);
             return ERR_OK;
         }
 
         pos += chunk;
         meta_save();
         meta_save_backup();
-        display_status();
+        display_status(0, 0);
     }
 
     return ERR_OK;
@@ -788,6 +795,7 @@ static err_check_t phase1(void)
 
         if (len < min_sectors) break;
 
+        display_status('>', start);
         ec = fast_copy_range(start, len);
         if (ec != ERR_OK) return ec;
     }
@@ -803,6 +811,7 @@ static err_check_t copy_forward_single(uint64_t start, uint64_t count,
     uint64_t pos = start;
     uint64_t end = start + count;
 
+    display_status('>', start);
     while (pos < end) {
         err_check_t ec = check_limits();
         if (ec != ERR_OK) return ec;
@@ -815,7 +824,7 @@ static err_check_t copy_forward_single(uint64_t start, uint64_t count,
         if (read_sector(pos, g_io_buffer) < 0) {
             record_read_error(pos);
             meta_save();
-            display_status();
+            display_status(0, 0);
             return ERR_OK; /* stop forward, let caller decide */
         }
 
@@ -833,7 +842,7 @@ static err_check_t copy_forward_single(uint64_t start, uint64_t count,
 
     meta_save();
     meta_save_backup();
-    display_status();
+    display_status(0, 0);
     return ERR_OK;
 }
 
@@ -844,6 +853,8 @@ static err_check_t copy_backward_single(uint64_t start, uint64_t count,
     if (count == 0) return ERR_OK;
 
     uint64_t pos = start + count; /* one past end, will decrement first */
+    
+    display_status('<', pos-1);
 
     while (pos > start) {
         pos--;
@@ -857,7 +868,7 @@ static err_check_t copy_backward_single(uint64_t start, uint64_t count,
         if (read_sector(pos, g_io_buffer) < 0) {
             record_read_error(pos);
             meta_save();
-            display_status();
+            display_status(0, 0);
             return ERR_OK;
         }
 
@@ -874,7 +885,7 @@ static err_check_t copy_backward_single(uint64_t start, uint64_t count,
 
     meta_save();
     meta_save_backup();
-    display_status();
+    display_status(0, 0);
     return ERR_OK;
 }
 
@@ -908,6 +919,7 @@ static err_check_t phase2(void)
         if (fwd_read == 0) {
             /* Try the middle sector to mark it */
             if (g_status_map[mid] != STATUS_COPIED && sector_needs_copy(mid, false)) {
+                display_status('*',mid);
                 if (read_sector(mid, g_io_buffer) < 0) {
                     record_read_error(mid);
                 } else {
@@ -917,7 +929,7 @@ static err_check_t phase2(void)
                     }
                 }
                 meta_save();
-                display_status();
+                display_status(0, 0);
             }
             /* Avoid infinite loop: if nothing can be copied, break */
             uint64_t new_len = find_largest_range(&start, false);
@@ -981,9 +993,10 @@ static err_check_t phase3(void)
             if (v == STATUS_COPIED) continue;
             if (v >= 2 && FAIL_COUNT(v) >= g_max_retries) continue;
 
+            display_status('*',s);
             if (read_sector(s, g_io_buffer) < 0) {
                 record_read_error(s);
-                display_status();
+                display_status(0, 0);
                 continue;
             }
 
@@ -1000,7 +1013,7 @@ static err_check_t phase3(void)
 
             meta_save();
             meta_save_backup();
-            display_status();
+            display_status(0, 0);
         }
     }
 
@@ -1328,18 +1341,18 @@ int main(int argc, char *argv[])
     err_check_t result;
 
     fprintf(stderr, "Phase 1: Fast copy of large ranges...\n");
-    display_status();
+    display_status(0, 0);
     result = phase1();
 
     if (result == ERR_OK) {
         fprintf(stderr, "Phase 2: Split-and-copy of remaining ranges...\n");
-        display_status();
+        display_status(0, 0);
         result = phase2();
     }
 
     if (result == ERR_OK) {
         fprintf(stderr, "Phase 3: Retry failed sectors...\n");
-        display_status();
+        display_status(0, 0);
         result = phase3();
     }
 

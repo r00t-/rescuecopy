@@ -43,4 +43,9 @@ the program iterates as follows:
  * when the maximum number of continuous read errors (reset on any successful read) is reached, the program aborts,
    and suggests to reset the device and restore the backup of the status file
 
- * a status display is available that continously displays and updates the sector status bytes on the screen, scaled to fit the available characters ((height-1)*width-1, the first line shows status information, the last character is not used, to simplify screen updates.)
+ * a status display is available that continously displays and updates the sector status bytes on the screen
+   * scaled to fit the available characters ((height-1)*width-1)
+     * the first line shows status information
+     * the last character is not used, to simplify screen updates.)
+   * an indicator for the position and direction currently being read
+     * this is drawn *just before* each read operation, so it's visible for the duration of the operation
