@@ -904,6 +904,7 @@ static err_check_t phase2(void)
 
         /* If nothing was read in forward, this range is probably all bad;
          * mark it as tried by attempting each sector once */
+        // FIXME: above comment makes no sense, should have been marked bad by copy attempt
         if (fwd_read == 0) {
             /* Try the middle sector to mark it */
             if (g_status_map[mid] != STATUS_COPIED && sector_needs_copy(mid, false)) {
