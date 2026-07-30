@@ -665,6 +665,7 @@ static void display_status(char mark, uint64_t current_sector)
 
 typedef enum {
     ERR_OK = 0,
+    ERR_LIMIT,
     ERR_TOTAL_LIMIT,
     ERR_CONT_LIMIT,
     ERR_INTERRUPTED
@@ -899,6 +900,12 @@ static err_check_t phase2(void)
         len = find_largest_range(&start, false);
         if (len == 0) break;
 
+        // skip if largest range is smaller than requested minimum
+        if (g_min_area_size > 0) {
+            uint64_t min_sectors = g_min_area_size / g_sector_size;
+            if (len < min_sectors) return ERR_LIMIT;
+        }
+
         uint64_t mid = start + len / 2;
 
         /* Forward from middle */
@@ -943,6 +950,9 @@ static err_check_t phase2(void)
 
 static err_check_t phase3(void)
 {
+    // skip if requested minimum area is more than one sector
+    if (g_min_area_size > 0 && g_sector_size < g_min_area_size) return ERR_LIMIT;
+
     /* Collect indices of retryable sectors */
     uint64_t *retryable = NULL;
     uint64_t n_retryable = 0;
@@ -1398,6 +1408,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Result:   ABORTED - total error limit reached.\n");
     } else if (result == ERR_INTERRUPTED) {
         fprintf(stderr, "Result:   INTERRUPTED - progress saved.\n");
+    } else if (result == ERR_LIMIT) {
+        fprintf(stderr, "Result:   LIMIT REACHED - no remaining area larger than requested minimum of %s.\n",
+                fmt_size((uint64_t)(g_min_area_size), s1, sizeof(s1)));
     } else {
         fprintf(stderr, "Result:   INCOMPLETE - %llu sectors could not be read.\n",
                 (unsigned long long)(g_sectors_untried + g_sectors_failed));
