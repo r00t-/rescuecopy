@@ -147,12 +147,12 @@ static int parse_int_size(const char *str, int *out)
 
 static const char *fmt_size(uint64_t bytes, char *buf, size_t bufsz)
 {
-    if (bytes >= 1000000000ULL)
-        snprintf(buf, bufsz, "%.2f GB", (double)bytes / 1e9);
-    else if (bytes >= 1000000ULL)
-        snprintf(buf, bufsz, "%.2f MB", (double)bytes / 1e6);
-    else if (bytes >= 1000ULL)
-        snprintf(buf, bufsz, "%.2f KB", (double)bytes / 1e3);
+    if (bytes >= 1024ULL * 1024 * 1024)
+        snprintf(buf, bufsz, "%.2f GB", (double)bytes / (1024ULL * 1024 * 1024));
+    else if (bytes >= 1024ULL * 1024)
+        snprintf(buf, bufsz, "%.2f MB", (double)bytes / (1024ULL * 1024));
+    else if (bytes >= 1024ULL)
+        snprintf(buf, bufsz, "%.2f KB", (double)bytes / 1024ULL);
     else
         snprintf(buf, bufsz, "%llu B", (unsigned long long)bytes);
     return buf;
